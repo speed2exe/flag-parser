@@ -2,29 +2,21 @@ const std = @import("std");
 const lib = @import("./lib.zig");
 
 pub fn main() void {
-    
-    // 1st way:
-    const flags1: []const lib.Flag = &.{
-        .{
-            .type = i8,
-            .name = "number",
-        },
-    };
-    std.log.info("{s}", .{@TypeOf(flags1)});
-    lib.setup(flags1);
+    // comptime known
+    const I8FlagType = lib.FlagOf(i8);
+    const num_flag: I8FlagType = .{.name = "num", .parseFunc = parsei8};
 
-    // 2st way:
-    const flags2 = [_]lib.Flag {
-        lib.Flag {
-            .type = []const u8,
-            .name = "number",
-        },
-    };
-    std.log.info("{s}", .{@TypeOf(flags2)});
-    lib.setup(flags1);
+    std.log.info("{s}", .{@TypeOf(num_flag)});
+    std.log.info("{s}", .{num_flag});
 
+    const val: anyerror!i8 = num_flag.getValue();
 
-    std.log.info("{s}", .{@TypeOf(sayHi)});
+    std.log.info("val type is {}", .{@TypeOf(val)});
+    std.log.info("{}", .{val});
+}
+
+fn parsei8(str: []const u8) !i8 {
+    return std.fmt.parseInt(i8, str, 10);
 }
 
 fn sayHi() void {}

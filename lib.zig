@@ -1,29 +1,51 @@
 const std = @import("std");
 
 // add default value based on type field
-pub const Flag = struct {
-    type: type, // replace with generic struct
-    name: []const u8,
-    alias: ?[]const u8 = null,
-    desc: ?[]const u8 = null,
-};
-
-pub fn setup (comptime flags: []const Flag) void {
-    std.log.info("flags: {*}", .{flags});
-    // const args = std.os.argv;
-    // std.log.info("args: {s}", .{args});
-}
-
-// TODO: Improve on this
-pub fn flagOf(comptime T: type) type {
+pub fn FlagOf(comptime T: type) type {
     return struct {
-        _type: type = T,
+        const Self = @This();
+
+        type: type = T,
         name: []const u8,
-        default: T,
+        parseFunc: fn([]const u8) anyerror!T,
+        default: ?T = null,
         alias: ?[]const u8 = null,
         desc: ?[]const u8 = null,
-        default: ?[]const u8 = null,
+
+        // TODO: parse all at once
+        pub fn getValue(comptime self: Self) !T {
+            // Get osArg value
+            var os_val = "abc";
+            std.log.info("os value is interpreted to be: {s}", .{os_val});
+            return self.parseFunc(os_val);
+        }
     };
 }
 
-// use case: lib.flagOf(u8){.default = ...(u8 value), .name = ..., .alias = ...}
+// for printing
+const Flag = struct {
+    type:     type,
+    name:     []const u8 = null,
+    alias:   ?[]const u8 = null,
+    default: ?[]const u8 = null,
+    desc:    ?[]const u8 = null,
+};
+
+fn osArgsKV() void {
+
+}
+
+
+// TODO: create globals to store comptime stuff
+// TODO: allow custom parsing function
+// TODO: parse default value at comptime
+// parseFunc: fn([]const u8) type,
+
+
+// 
+fn RegisterAll() void {
+
+}
+
+
+    // TODO: add debug function to property print those elems
