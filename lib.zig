@@ -5,7 +5,6 @@ pub fn FlagOf(comptime T: type) type {
     return struct {
         const Self = @This();
 
-        type: type = T,
         name: []const u8,
         parseFunc: fn([]const u8) anyerror!T,
         default: ?T = null,
