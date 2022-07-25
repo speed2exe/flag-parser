@@ -9,10 +9,10 @@ pub fn main() void {
     std.log.info("{s}", .{@TypeOf(num_flag)});
     std.log.info("{s}", .{num_flag});
 
-    const val: anyerror!i8 = num_flag.getValue();
+    var inited = num_flag.init();
+    std.log.info("{s}", .{@TypeOf(inited)});
+    std.log.info("{s}", .{inited});
 
-    std.log.info("val type is {}", .{@TypeOf(val)});
-    std.log.info("{}", .{val});
 }
 
 fn parsei8(str: []const u8) !i8 {
