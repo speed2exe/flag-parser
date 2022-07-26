@@ -17,10 +17,9 @@ pub fn FlagOf(comptime T: type) type {
 pub fn getOsArgKeyValue() !std.StringHashMap([]const u8) {
     var osKeyValue = std.StringHashMap([]const u8).init(std.heap.page_allocator);
     var os_args_consumer = OsArgsConsumer{};
-    while (os_args_consumer.consume()) |result| {
-        _ = result;
+    while (try os_args_consumer.consume()) |result| {
+        osKeyValue.put(result.key, result.value);
     }
-
     return osKeyValue;
 }
 
@@ -30,47 +29,71 @@ const KeyValue = struct {
 };
 
 const OsArgsConsumer = struct {
-    os_args: [][*:0]const u8,
+    os_args: [][*:0]const u8 = std.os.argv,
 
-    fn popFromStart(self: *OsArgsConsumer) [*:0]const u8 {
+    fn popFromStart(self: *OsArgsConsumer) ?[*:0]const u8 {
+        if (self.os_args.len == 0) {
+            return null;
+        }
         defer self.os_args = self.os_args[1..];
         return self.os_args[0];
     }
 
-    fn consume(self: *OsArgsConsumer) ?KeyValue {
-        if (self.os_args.len == 0) {
-            return null;
-        }
-        
-        
+    fn consume(self: *OsArgsConsumer) !?KeyValue {
+        const next = self.popFromStart() orelse return null;
 
-        const next = self.popFromStart();
-        _ = next;
+        if (startWithDash(next)) {
+            next = trimDash(next);
+        } else {
+            std.log.err("invalid argument name found: {}", next);
+            return error.InvalidArgs; // TODO: Pass value with error when possible
+        }
+
+        if (isArgNameEqualValueFormat()) |result| {
+            return result;
+        }
+
+        const next2 = popFromStart() orelse return KeyValue{.key = next, .value = null};
         
-        return null;
+        _ = next2;
+
     }
 };
 
 // example: --number=8
-fn equal(str: [*:0]const u8) ?KeyValue {
+fn isArgNameEqualValueFormat(str: [*:0]const u8) ?KeyValue {
     _ = str;
     return null;
+}
+
+fn trimDash(str: [*:0]const u8) [*:0]const u8 {
+    _ = str;
+}
+
+fn startWithDash(str: [*:0]const u8) bool {
+    return (str.len > 0) and str[0] == '-';
 }
 
 pub fn consumeOsArgs(args: [][*:0]const u8) void {
     _ = args;
 }
 
-pub fn main() !void {
-    info("return: {}", .{returnOptErr()});
-    
-    while (returnOptErr()) |value| {
-        info("in while loop value: {}", .{value});
+pub fn main() void {
+    while(returnOptErr()) |v| {
+        info("got value: {}", .{v});
     }
-
 }
 
-fn returnOptErr() ?i8 {
+fn optValue() ?i8 {
     return 8;
+}
+
+var x: i8 = 8;
+fn returnOptErr() ?i8 {
+    defer x -= 1;
+    if (x == 0) {
+        return null;
+    }
+    return x;
 }
 
