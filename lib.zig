@@ -1,4 +1,6 @@
 const std = @import("std");
+const mem = std.mem;
+const expect = std.testing.expect;
 const info = std.log.info;
 
 // add default value based on type field
@@ -31,7 +33,7 @@ const KeyValue = struct {
 const OsArgsConsumer = struct {
     os_args: [][*:0]const u8 = std.os.argv,
 
-    fn popFromStart(self: *OsArgsConsumer) ?[*:0]const u8 {
+    fn popFromStart(self: *OsArgsConsumer) ?[]const u8 {
         if (self.os_args.len == 0) {
             return null;
         }
@@ -61,27 +63,50 @@ const OsArgsConsumer = struct {
 };
 
 // example: --number=8
-fn isArgNameEqualValueFormat(str: [*:0]const u8) ?KeyValue {
+fn isArgNameEqualValueFormat(str: []const u8) ?KeyValue {
     _ = str;
     return null;
 }
 
-fn trimDash(str: [*:0]const u8) [*:0]const u8 {
-    _ = str;
+fn trimDash(str: []const u8) []const u8 {
+    for (str) |b, i| {
+        if (b != '-') {
+            return str[i..];
+        }
+    }
+    return "";
 }
 
-fn startWithDash(str: [*:0]const u8) bool {
+test "trimDash" {
+    try expect(mem.eql(u8, trimDash("--help"), @as([]const u8, "help")));
+    try expect(mem.eql(u8, trimDash("--"), @as([]const u8, "")));
+    try expect(mem.eql(u8, trimDash(""), @as([]const u8, "")));
+    try expect(mem.eql(u8, trimDash("- "), @as([]const u8, " ")));
+    try expect(mem.eql(u8, trimDash("help"), @as([]const u8, "help")));
+}
+
+fn startWithDash(str: []const u8) bool {
     return (str.len > 0) and str[0] == '-';
 }
 
-pub fn consumeOsArgs(args: [][*:0]const u8) void {
+test "startWithDash" {
+    try expect(startWithDash("--h") == true);
+    try expect(startWithDash("-h") == true);
+    try expect(startWithDash("h") == false);
+    try expect(startWithDash("") == false);
+    try expect(startWithDash(" ") == false);
+}
+
+pub fn consumeOsArgs(args: [][]const u8) void {
     _ = args;
 }
 
 pub fn main() void {
-    while(returnOptErr()) |v| {
-        info("got value: {}", .{v});
-    }
+    info("slice: {s}", .{sliceFromSentinel()});
+}
+
+fn sliceFromSentinel() []const u8{
+    return "hello";
 }
 
 fn optValue() ?i8 {
