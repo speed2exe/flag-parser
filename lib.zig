@@ -1,4 +1,5 @@
 const std = @import("std");
+const print = std.debug.print;
 const mem = std.mem;
 const expect = std.testing.expect;
 const info = std.log.info;
@@ -16,18 +17,14 @@ pub fn FlagOf(comptime T: type) type {
     };
 }
 
-pub fn getOsArgKeyValue() !std.StringHashMap([]const u8) {
-    var osKeyValue = std.StringHashMap([]const u8).init(std.heap.page_allocator);
-    var os_args_consumer = ArgsConsumer{};
+pub fn keyValueFromArgs(args: [][*:0]const u8) !std.StringHashMap([]const u8) {
+    // TODO: allow allocator to be passed in
+    var key_value = std.StringHashMap([]const u8).init(std.heap.page_allocator);
+    var os_args_consumer = ArgsConsumer{.args = args};
     while (try os_args_consumer.consume()) |result| {
-        osKeyValue.put(result.key, result.value);
+        try key_value.put(result.key, result.value);
     }
-    return osKeyValue;
-}
-
-fn slicessOfSentinelStrs(strs: [][*:0]u8) [][]const u8 {
-    const result: [][]const u8 = [strs.len][].{};
-    return result;
+    return key_value;
 }
 
 const KeyValue = struct {
@@ -36,11 +33,11 @@ const KeyValue = struct {
 };
 
 const ArgsConsumer = struct {
-    args: [][]const u8,
+    args: [][*:0]const u8,
 
     fn popFromStart(self: *ArgsConsumer) ?[]const u8 {
         const result = self.peekFromStart();
-        if (result) {
+        if (result != null) {
             self.args = self.args[1..];
         }
         return result;
@@ -50,34 +47,32 @@ const ArgsConsumer = struct {
         if (self.args.len == 0) {
             return null;
         }
-        return self.args[0];
+        return std.mem.span(self.args[0]);
     }
 
     fn consume(self: *ArgsConsumer) !?KeyValue {
-        const next = self.popFromStart() orelse return null;
+        var next = self.popFromStart() orelse return null;
 
         if (startWithDash(next)) {
             next = trimDash(next);
         } else {
-            std.log.err("invalid argument name found: {}", next);
+            std.log.err("invalid argument name found: {s}", .{next});
             return error.InvalidArgs; // TODO: Pass value with error when possible
         }
 
-        if (getEqualityKeyValue()) |result| {
+        if (getEqualityKeyValue(next)) |result| {
             return result;
         }
 
-        const next2 = peekFromStart() orelse return KeyValue{.key = next, .value = ""};
+        const next2 = self.peekFromStart() orelse return KeyValue{.key = next, .value = ""};
         if (startWithDash(next2)) {
-            KeyValue{.key = next, .value = ""};
+            return KeyValue{.key = next, .value = ""};
         }
 
         self.args = self.args[1..];
         return KeyValue{.key = next, .value = next2};
     }
 };
-
-
 
 fn getEqualityKeyValue(str: []const u8) ?KeyValue {
     for (str) |b, i| {
@@ -138,22 +133,12 @@ test "startWithDash" {
     try expect(startWithDash(" ") == false);
 }
 
-pub fn consumeOsArgs(args: [][]const u8) void {
-    _ = args;
-}
-
-pub fn main() void {
-    var array = [_][*:0]const u8{"hello", "world", "foo", "bar"};
-    // const slice: [][*:0]const u8 = &array;
-
-    var result: [array.len][]const u8 = undefined;
-    for (array) |str, i| {
-        result[i] = str;
-    }
-
-    info("result: {s}", .{result});
-
-    // info("slice: {s}", .{slice});
+pub fn main() !void {
+    var args = [_][*:0]const u8{"--hello", "world"};
+    var args_ptr: [][*:0]const u8 = &args;
+    var kv: std.StringHashMap([]const u8) = try keyValueFromArgs(args_ptr);
+    const value = kv.get("hello").?;
+    print("value from hello key: {s}", .{value});
 }
 
 fn sliceFromSentinel() []const u8{
