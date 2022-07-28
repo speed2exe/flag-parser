@@ -18,30 +18,42 @@ pub fn FlagOf(comptime T: type) type {
 
 pub fn getOsArgKeyValue() !std.StringHashMap([]const u8) {
     var osKeyValue = std.StringHashMap([]const u8).init(std.heap.page_allocator);
-    var os_args_consumer = OsArgsConsumer{};
+    var os_args_consumer = ArgsConsumer{};
     while (try os_args_consumer.consume()) |result| {
         osKeyValue.put(result.key, result.value);
     }
     return osKeyValue;
 }
 
+fn slicessOfSentinelStrs(strs: [][*:0]u8) [][]const u8 {
+    const result: [][]const u8 = [strs.len][].{};
+    return result;
+}
+
 const KeyValue = struct {
     key: []const u8,
-    value: ?[]const u8,
+    value: []const u8,
 };
 
-const OsArgsConsumer = struct {
-    os_args: [][*:0]const u8 = std.os.argv,
+const ArgsConsumer = struct {
+    args: [][]const u8,
 
-    fn popFromStart(self: *OsArgsConsumer) ?[]const u8 {
-        if (self.os_args.len == 0) {
-            return null;
+    fn popFromStart(self: *ArgsConsumer) ?[]const u8 {
+        const result = self.peekFromStart();
+        if (result) {
+            self.args = self.args[1..];
         }
-        defer self.os_args = self.os_args[1..];
-        return self.os_args[0];
+        return result;
     }
 
-    fn consume(self: *OsArgsConsumer) !?KeyValue {
+    fn peekFromStart(self: ArgsConsumer) ?[]const u8 {
+        if (self.args.len == 0) {
+            return null;
+        }
+        return self.args[0];
+    }
+
+    fn consume(self: *ArgsConsumer) !?KeyValue {
         const next = self.popFromStart() orelse return null;
 
         if (startWithDash(next)) {
@@ -51,22 +63,51 @@ const OsArgsConsumer = struct {
             return error.InvalidArgs; // TODO: Pass value with error when possible
         }
 
-        if (isArgNameEqualValueFormat()) |result| {
+        if (getEqualityKeyValue()) |result| {
             return result;
         }
 
-        const next2 = popFromStart() orelse return KeyValue{.key = next, .value = null};
-        
-        _ = next2;
+        const next2 = peekFromStart() orelse return KeyValue{.key = next, .value = ""};
+        if (startWithDash(next2)) {
+            KeyValue{.key = next, .value = ""};
+        }
 
+        self.args = self.args[1..];
+        return KeyValue{.key = next, .value = next2};
     }
 };
 
-// example: --number=8
-fn isArgNameEqualValueFormat(str: []const u8) ?KeyValue {
-    _ = str;
+
+
+fn getEqualityKeyValue(str: []const u8) ?KeyValue {
+    for (str) |b, i| {
+        if (b == '=') {
+            return KeyValue {
+                .key = str[0..i],
+                .value = str[i+1..],
+            };
+        }
+    }
     return null;
 }
+
+test "getEqualityKeyValue" {
+    try expect(getEqualityKeyValue("hello") == null);
+    try expect(getEqualityKeyValue("") == null);
+
+    const kv: KeyValue = getEqualityKeyValue("hello=world").?;
+    try expect(mem.eql(u8, kv.key, @as([]const u8, "hello")));
+    try expect(mem.eql(u8, kv.value, @as([]const u8, "world")));
+
+    const kv2: KeyValue = getEqualityKeyValue("hello=").?;
+    try expect(mem.eql(u8, kv2.key, @as([]const u8, "hello")));
+    try expect(mem.eql(u8, kv2.value, @as([]const u8, "")));
+
+    const kv3: KeyValue = getEqualityKeyValue("=world").?;
+    try expect(mem.eql(u8, kv3.key, @as([]const u8, "")));
+    try expect(mem.eql(u8, kv3.value, @as([]const u8, "world")));
+}
+
 
 fn trimDash(str: []const u8) []const u8 {
     for (str) |b, i| {
@@ -102,7 +143,17 @@ pub fn consumeOsArgs(args: [][]const u8) void {
 }
 
 pub fn main() void {
-    info("slice: {s}", .{sliceFromSentinel()});
+    var array = [_][*:0]const u8{"hello", "world", "foo", "bar"};
+    // const slice: [][*:0]const u8 = &array;
+
+    var result: [array.len][]const u8 = undefined;
+    for (array) |str, i| {
+        result[i] = str;
+    }
+
+    info("result: {s}", .{result});
+
+    // info("slice: {s}", .{slice});
 }
 
 fn sliceFromSentinel() []const u8{
