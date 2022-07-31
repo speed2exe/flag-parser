@@ -5,8 +5,7 @@ const expect = std.testing.expect;
 const expectError = std.testing.expectError;
 const info = std.log.info;
 
-// add default value based on type field
-pub fn FlagOf(comptime T: type) type {
+pub fn Flag(comptime T: type) type {
     return struct {
         const Self = @This();
 
@@ -15,10 +14,37 @@ pub fn FlagOf(comptime T: type) type {
         default:    ?T                       = null,
         alias:      ?[]const u8              = null,
         desc:       ?[]const u8              = null,
+
+        pub fn valueFromMap(self: Self, key_value: std.StringHashMap([]const u8)) anyerror!?T {
+            const opt_named_value = key_value.get(self.name);
+            const opt_aliased_value = blk: {
+                if (self.alias) |alias_name| {
+                    break :blk key_value.get(alias_name);
+                } else {
+                    break :blk null;
+                }
+            };
+
+            if (opt_named_value) |named_value| {
+                if (opt_aliased_value) |aliased_value| {
+                    _ = aliased_value;
+                    // std.log.err("Ambiguous value: both name and alias are present, name:{s}, alias:{s}", .{named_value, aliased_value});
+                    return error.AmbiguousValue;
+                }
+                return try self.parse_func(named_value);
+            }
+
+            if (opt_aliased_value) |aliased_value| {
+                return try self.parse_func(aliased_value);
+            }
+
+            return self.default;
+       }
+
     };
 }
 
-pub fn keyValueFromArgs(allocator: std.mem.Allocator,  args: [][*:0]const u8) !std.StringHashMap([]const u8) {
+pub fn keyValueFromArgs(allocator: std.mem.Allocator, args: [][*:0]const u8) !std.StringHashMap([]const u8) {
     var key_value = std.StringHashMap([]const u8).init(allocator);
     var os_args_consumer = ArgsConsumer{.args = args};
     while (try os_args_consumer.consume()) |result| {
@@ -36,11 +62,11 @@ const ArgsConsumer = struct {
     args: [][*:0]const u8,
 
     fn popFromStart(self: *ArgsConsumer) ?[]const u8 {
-        const result = self.peekFromStart();
-        if (result != null) {
+        if (self.peekFromStart()) |value| {
             self.args = self.args[1..];
+            return value;
         }
-        return result;
+        return null;
     }
 
     fn peekFromStart(self: ArgsConsumer) ?[]const u8 {
@@ -54,9 +80,12 @@ const ArgsConsumer = struct {
         var next = self.popFromStart() orelse return null;
 
         if (startWithDash(next)) {
+            // TODO: check if it's the end, e.g. --number 198 --lines 289 -- <real values>
+                                                                       // ^  <- end is here
+
             next = trimDash(next);
         } else {
-            std.log.err("invalid argument name found: {s}", .{next});
+            // std.log.err("invalid argument name found: {s}", .{next});
             return error.InvalidArgs; // TODO: Pass value with error when possible
         }
 
@@ -152,31 +181,3 @@ test "startWithDash" {
     try expect(startWithDash("") == false);
     try expect(startWithDash(" ") == false);
 }
-
-pub fn main() !void {
-    var args = [_][*:0]const u8{"help", " "};
-    if (keyValueFromArgs(std.heap.page_allocator, &args)) |kv| {
-        _ = kv;
-        print("success!", .{});
-    } else |err| {
-        print("failed! {}", .{err});
-    }
-}
-
-fn sliceFromSentinel() []const u8{
-    return "hello";
-}
-
-fn optValue() ?i8 {
-    return 8;
-}
-
-var x: i8 = 8;
-fn returnOptErr() ?i8 {
-    defer x -= 1;
-    if (x == 0) {
-        return null;
-    }
-    return x;
-}
-
