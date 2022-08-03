@@ -44,6 +44,9 @@ pub fn Flag(comptime T: type) type {
     };
 }
 
+// TODO:
+// return helpful messages when parsing fail, maybe wait for error with values
+// return the rest of the args after - or --
 pub fn keyValueFromArgs(allocator: std.mem.Allocator, args: [][*:0]const u8) !std.StringHashMap([]const u8) {
     var key_value = std.StringHashMap([]const u8).init(allocator);
     var os_args_consumer = ArgsConsumer{.args = args};
@@ -78,15 +81,19 @@ const ArgsConsumer = struct {
 
     fn consume(self: *ArgsConsumer) !?KeyValue {
         var next = self.popFromStart() orelse return null;
-
-        if (startWithDash(next)) {
-            // TODO: check if it's the end, e.g. --number 198 --lines 289 -- <real values>
-                                                                       // ^  <- end is here
-
-            next = trimDash(next);
-        } else {
-            // std.log.err("invalid argument name found: {s}", .{next});
+        if (!startWithDash(next)) {
             return error.InvalidArgs; // TODO: Pass value with error when possible
+        }
+
+        // since we have already determine that it starts with '-'
+        // we don't need to check the first elem againt
+        next = trimDash(next[1..]);
+
+        // Scenario:
+        // ./program_name --name zx --number 2 -- search
+        //                                     ^^ indicates end of args
+        if (next.len == 0) {
+            return null;
         }
 
         if (getEqualityKeyValue(next)) |result| {
@@ -104,21 +111,34 @@ const ArgsConsumer = struct {
 };
 
 test "keyValueFromArgs" {
+    // normal passing case
     var args = [_][*:0]const u8{"--hello", "world"};
     var kv: std.StringHashMap([]const u8) = try keyValueFromArgs(std.heap.page_allocator, &args);
     var value = kv.get("hello").?;
     try expect(std.mem.eql(u8, value, "world"));
 
+    // with single dash
     args = [_][*:0]const u8{"-h", "world"};
     kv = try keyValueFromArgs(std.heap.page_allocator, &args);
     value = kv.get("h").?;
     try expect(std.mem.eql(u8, value, "world"));
 
+    // with next args as blank
     args = [_][*:0]const u8{"-h", " "};
     kv = try keyValueFromArgs(std.heap.page_allocator, &args);
     value = kv.get("h").?;
     try expect(std.mem.eql(u8, value, " "));
 
+    // with terminating - or --
+    var args2 = [_][*:0]const u8{"--number", "1", "--lines", "2", "--", "my_path", "another_arg"};
+    info("args2: {s}", .{args2});
+    kv = try keyValueFromArgs(std.heap.page_allocator, &args2);
+    value = kv.get("number").?;
+    try expect(std.mem.eql(u8, value, "1"));
+    value = kv.get("lines").?;
+    try expect(std.mem.eql(u8, value, "2"));
+
+    // expected to fail
     args = [_][*:0]const u8{"hello", " "};
     try expectError(error.InvalidArgs, keyValueFromArgs(std.heap.page_allocator, &args));
 }
