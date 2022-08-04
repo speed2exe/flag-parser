@@ -5,17 +5,17 @@ const expect = std.testing.expect;
 const expectError = std.testing.expectError;
 
 pub fn main() !void {
-    // Lib improvement
-    // Examples with two flags
+    // Examples with two flags:
 
-    const args: [][*:0]const u8 = std.os.argv;
+    // Parse os arguments into kv
+    const kv = lib.keyValueFromArgs(std.heap.page_allocator, lib.getOsArgs()) catch unreachable;
 
-    const kv = lib.keyValueFromArgs(std.heap.page_allocator, args[1..]) catch unreachable;
-    const num_flag = lib.Flag(i8){.name = "number", .parse_func = parsei8};
-    const num = num_flag.valueFromMap(kv);
-    print("number: {}, type: {}\n", .{num,@TypeOf(num)});
-
+    // Declare the args
+    const num = (lib.Flag(i8){.name = "number", .parse_func = parsei8}).valueFromMap(kv);
     const line = (lib.Flag(i8){.name = "line", .parse_func = parsei8}).valueFromMap(kv);
+
+    // rest of your application stuff
+    print("number: {}, type: {}\n", .{num,@TypeOf(num)});
     print("line: {}, type: {}\n", .{line,@TypeOf(line)});
 
 

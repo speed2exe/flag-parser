@@ -5,6 +5,13 @@ const expect = std.testing.expect;
 const expectError = std.testing.expectError;
 const info = std.log.info;
 
+// example args:    ./program_name --name zx --number 2 -- search
+// returns:         --name zx --number 2 -- search
+pub fn getOsArgs() [][*:0]const u8 {
+    const args: [][*:0]const u8 = std.os.argv;
+    return args[1..];
+}
+
 pub fn Flag(comptime T: type) type {
     return struct {
         const Self = @This();
