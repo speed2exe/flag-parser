@@ -8,16 +8,31 @@ pub fn main() !void {
     // Examples with two flags:
 
     // Parse os arguments into kv
-    const kv = lib.keyValueFromArgs(std.heap.page_allocator, lib.getOsArgs()) catch unreachable;
+    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, lib.getOsArgs());
 
-    // Declare the args
-    const num = (lib.Flag(i8){.name = "number", .parse_func = parsei8}).valueFromMap(kv);
-    const line = (lib.Flag(i8){.name = "line", .parse_func = parsei8}).valueFromMap(kv);
+    // Declare the args:
+    // TODO: ensure that each flag declared is not duplicated, name or alias, throw error during comptime
+    const err_opt_num = (lib.Flag(i8){.name = "number", .parse_func = parsei8}).init().valueFromMap(kv);
+    const line = (lib.Flag(i8){.name = "line", .parse_func = parsei8}).init().valueFromMap(kv);
+    // With Error Checking:
+    // const num = try (lib.Flag(i8){.name = "number", .parse_func = parsei8}).valueFromMap(kv);
+    // const line = try (lib.Flag(i8){.name = "line", .parse_func = parsei8}).valueFromMap(kv);
 
-    // rest of your application stuff
-    print("number: {}, type: {}\n", .{num,@TypeOf(num)});
-    print("line: {}, type: {}\n", .{line,@TypeOf(line)});
+    // handling of the variable
+    if (err_opt_num) |opt_num| {
+        if (opt_num) |num| {
+            print("number: {}, type: {}\n", .{num,@TypeOf(num)});
+        } else {
+            print("number is null ",.{});
+        }
+    } else |err| {
+        print("got error while attempting to get value of number arg: {}",.{err});
+    }
 
+    // debug your arg 
+    print("\nline: {}, type: {}\n", .{line,@TypeOf(line)});
+
+    
 
     // TODO: experiment with comptime stuff
 }

@@ -22,6 +22,14 @@ pub fn Flag(comptime T: type) type {
         alias:      ?[]const u8              = null,
         desc:       ?[]const u8              = null,
 
+        pub fn init(self: Self) Self {
+            //TODO:
+            // init should take in compulsory stuff
+            // check for Duplicated name and alias
+            // add to list of help message (TODO)
+            return self;
+        }
+
         pub fn valueFromMap(self: Self, key_value: std.StringHashMap([]const u8)) anyerror!?T {
             const opt_named_value = key_value.get(self.name);
             const opt_aliased_value = blk: {
