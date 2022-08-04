@@ -5,7 +5,25 @@ const expect = std.testing.expect;
 const expectError = std.testing.expectError;
 
 pub fn main() !void {
+    // Lib improvement
+    // Examples with two flags
 
+    const args: [][*:0]const u8 = std.os.argv;
+
+    const kv = lib.keyValueFromArgs(std.heap.page_allocator, args[1..]) catch unreachable;
+    const num_flag = lib.Flag(i8){.name = "number", .parse_func = parsei8};
+    const num = num_flag.valueFromMap(kv);
+    print("number: {}, type: {}\n", .{num,@TypeOf(num)});
+
+    const line = (lib.Flag(i8){.name = "line", .parse_func = parsei8}).valueFromMap(kv);
+    print("line: {}, type: {}\n", .{line,@TypeOf(line)});
+
+
+    // TODO: experiment with comptime stuff
+}
+
+fn myFunc() struct{a: i8, b: u8} {
+    return .{.a = 8, .b = 8};
 }
 
 fn parsei8(str: []const u8) !i8 {
