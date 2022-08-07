@@ -58,24 +58,6 @@ pub fn Flag(comptime T: type) type {
     };
 }
 
-// TODO:
-// return helpful messages when parsing fail, maybe wait for error with values
-// wait for errors with value?
-// return the rest of the args after - or --
-// wait for tuples with multiple return values?
-pub fn keyValueFromArgs(allocator: std.mem.Allocator, args: [][*:0]const u8) !std.StringHashMap(?[]const u8) {
-    var key_value = std.StringHashMap(?[]const u8).init(allocator);
-    var os_args_consumer = ArgsConsumer{ .args = args };
-    while (try os_args_consumer.consume()) |result| {
-        if (key_value.getKey(result.key)) |key| {
-            std.log.err("duplicated args found: {s}\n", .{key});
-            return error.DuplicatedArguments;
-        }
-        try key_value.put(result.key, result.value);
-    }
-    return key_value;
-}
-
 const ParseResult = struct {
     // key_value represents the parsed result from e.g.:
     // --name hello --line 12
@@ -86,6 +68,11 @@ const ParseResult = struct {
     params: [][*:0]const u8,
 };
 
+// TODO:
+// return helpful messages when parsing fail, maybe wait for error with values
+// wait for errors with value?
+// return the rest of the args after - or --
+// wait for tuples with multiple return values?
 pub fn parseArgs(allocator: std.mem.Allocator, args: [][*:0]const u8) !ParseResult {
     var key_value = std.StringHashMap(?[]const u8).init(allocator);
     var os_args_consumer = ArgsConsumer{ .args = args };

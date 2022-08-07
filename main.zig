@@ -8,7 +8,8 @@ pub fn main() !void {
     // Examples with two flags:
 
     // Parse os arguments into kv
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, lib.getOsArgs());
+    const res = try lib.parseArgs(std.heap.page_allocator, lib.getOsArgs());
+    const kv = res.key_value;
 
     // Declare the args:
     const err_opt_num = (lib.Flag(i8){ .name = "number", .parse_func = parsei8 }).init().valueFromMap(kv);
@@ -68,7 +69,8 @@ fn parseBool(str: ?[]const u8) !bool {
 test "lib single args" {
     const num_flag = lib.Flag(i8){ .name = "number", .alias = "num", .parse_func = parsei8 };
     var args = [_][*:0]const u8{ "--number", "117" };
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     var value = num_flag.valueFromMap(kv) catch unreachable;
     try expect(value.? == 117);
 }
@@ -78,7 +80,8 @@ test "lib double args" {
     const line_flag = lib.Flag(i8){ .name = "line", .parse_func = parsei8 };
 
     var args = [_][*:0]const u8{ "--number", "117", "-line", "85" };
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     var value1 = num_flag.valueFromMap(kv) catch unreachable;
     try expect(value1.? == 117);
     var value2 = line_flag.valueFromMap(kv) catch unreachable;
@@ -88,7 +91,8 @@ test "lib double args" {
 test "lib single alias" {
     const num_flag = lib.Flag(i8){ .name = "number", .alias = "num", .parse_func = parsei8 };
     var args = [_][*:0]const u8{ "--num", "117" };
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     var value = num_flag.valueFromMap(kv) catch unreachable;
     try expect(value.? == 117);
 }
@@ -96,7 +100,8 @@ test "lib single alias" {
 test "lib no args" {
     const num_flag = lib.Flag(i8){ .name = "number", .alias = "num", .parse_func = parsei8 };
     var args = [_][*:0]const u8{};
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     var value = num_flag.valueFromMap(kv) catch unreachable;
     try expect(value == null);
 }
@@ -106,7 +111,8 @@ test "lib args with boolean args" {
     const is_lucky = lib.Flag(bool){ .name = "is_lucky", .parse_func = parseBool };
     const is_happy = lib.Flag(bool){ .name = "is_happy", .parse_func = parseBool };
     var args = [_][*:0]const u8{ "--is_dead", "--is_lucky", "false", "--is_happy" };
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     var is_dead_value = is_dead.valueFromMap(kv) catch unreachable;
     try expect(is_dead_value.? == true);
     var is_lucky_value = is_lucky.valueFromMap(kv) catch unreachable;
@@ -118,7 +124,8 @@ test "lib args with boolean args" {
 test "lib with default" {
     const num_flag = lib.Flag(i8){ .name = "number", .alias = "num", .parse_func = parsei8, .default = 88 };
     var args = [_][*:0]const u8{};
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     var value = num_flag.valueFromMap(kv) catch unreachable;
     try expect(value.? == 88);
 }
@@ -126,13 +133,23 @@ test "lib with default" {
 test "lib with erronous parsing " {
     const num_flag = lib.Flag(i8){ .name = "number", .alias = "num", .parse_func = failedParsei8, .default = 88 };
     var args = [_][*:0]const u8{ "--num", "125" };
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     try expectError(error.ParseError, num_flag.valueFromMap(kv));
 }
 
 test "lib with both named and alias parsing " {
     const num_flag = lib.Flag(i8){ .name = "number", .alias = "num", .parse_func = failedParsei8, .default = 88 };
     var args = [_][*:0]const u8{ "--num", "125", "--number", "126" };
-    const kv = try lib.keyValueFromArgs(std.heap.page_allocator, &args);
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const kv = res.key_value;
     try expectError(error.AmbiguousValue, num_flag.valueFromMap(kv));
+}
+
+test "lib with params after args" {
+    var args = [_][*:0]const u8{ "--num", "125", "--", "hello" , "world" };
+    const res = try lib.parseArgs(std.heap.page_allocator, &args);
+    const params = res.params;
+    try expect(std.mem.eql(u8, std.mem.span(params[0]), "hello"));
+    try expect(std.mem.eql(u8, std.mem.span(params[1]), "world"));
 }
