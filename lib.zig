@@ -76,28 +76,33 @@ pub fn keyValueFromArgs(allocator: std.mem.Allocator, args: [][*:0]const u8) !st
     return key_value;
 }
 
-// const KeyValueAndParams = struct {
-//     // key_value represents the parsed result from e.g.:
-//     // --name hello --line 12
-//     key_value: std.StringHashMap([]const u8),
-//
-//     params: [][*:0]const u8,
-// };
-//
-// pub fn keyValueAndParamsFromArgs(allocator: std.mem.Allocator, args: [][*:0]const u8) !KeyValueAndParams {
-//     var key_value = std.StringHashMap([]const u8).init(allocator);
-//     var os_args_consumer = ArgsConsumer{.args = args};
-//
-//     while (try os_args_consumer.consume()) |result| {
-//         if (key_value.getKey(result.key)) |key| {
-//             std.log.err("duplicated args found: {s}\n",.{key});
-//             return error.DuplicatedArguments;
-//         }
-//         try key_value.put(result.key, result.value);
-//     }
-//
-//     return key_value;
-// }
+const ParseResult = struct {
+    // key_value represents the parsed result from e.g.:
+    // --name hello --line 12
+    key_value: std.StringHashMap(?[]const u8),
+
+    // represents remaining args after --
+    // e.g. ./program_name --name zx --number 2 -- param1 param2
+    params: [][*:0]const u8,
+};
+
+pub fn parseArgs(allocator: std.mem.Allocator, args: [][*:0]const u8) !ParseResult {
+    var key_value = std.StringHashMap(?[]const u8).init(allocator);
+    var os_args_consumer = ArgsConsumer{ .args = args };
+
+    while (try os_args_consumer.consume()) |result| {
+        if (key_value.getKey(result.key)) |key| {
+            std.log.err("duplicated args found: {s}\n", .{key});
+            return error.DuplicatedArguments;
+        }
+        try key_value.put(result.key, result.value);
+    }
+
+    return ParseResult{
+        .key_value = key_value,
+        .params = os_args_consumer.args,
+    };
+}
 
 const KeyValue = struct {
     key: []const u8,
@@ -153,45 +158,69 @@ const ArgsConsumer = struct {
     }
 };
 
-test "keyValueFromArgs" {
-    // normal passing case
+// typical full name arg parse
+test "parseArgs 1" {
     var args = [_][*:0]const u8{ "--hello", "world" };
-    var kv: std.StringHashMap(?[]const u8) = try keyValueFromArgs(std.heap.page_allocator, &args);
-    var value = kv.get("hello").?;
+    const res: ParseResult = try parseArgs(std.heap.page_allocator, &args);
+    const value = res.key_value.get("hello").?;
     try expect(std.mem.eql(u8, value.?, "world"));
+}
 
-    // with single dash
-    args = [_][*:0]const u8{ "-h", "world" };
-    kv = try keyValueFromArgs(std.heap.page_allocator, &args);
-    value = kv.get("h").?;
+// with single dash
+test "parseArgs 2" {
+    var args = [_][*:0]const u8{ "-h", "world" };
+    const res: ParseResult = try parseArgs(std.heap.page_allocator, &args);
+    const value = res.key_value.get("h").?;
     try expect(std.mem.eql(u8, value.?, "world"));
+}
 
-    // with next args as blank
-    args = [_][*:0]const u8{ "-h", " " };
-    kv = try keyValueFromArgs(std.heap.page_allocator, &args);
-    value = kv.get("h").?;
+// with next args as blank
+test "parseArgs 3" {
+    var args = [_][*:0]const u8{ "-h", " " };
+    const res: ParseResult = try parseArgs(std.heap.page_allocator, &args);
+    const value = res.key_value.get("h").?;
     try expect(std.mem.eql(u8, value.?, " "));
+}
 
-    // with no value
-    args = [_][*:0]const u8{ "-h", "-l" };
-    kv = try keyValueFromArgs(std.heap.page_allocator, &args);
-    value = kv.get("h").?;
-    try expect(value == null);
-    value = kv.get("l").?;
-    try expect(value == null);
+// with no value
+test "parseArgs 4" {
+    var args = [_][*:0]const u8{ "-h", "-l" };
+    const res = try parseArgs(std.heap.page_allocator, &args);
+    const h_value = res.key_value.get("h").?;
+    try expect(h_value == null);
+    const l_value = res.key_value.get("l").?;
+    try expect(l_value == null);
+}
 
-    // with terminating - or --
-    var args2 = [_][*:0]const u8{ "--number", "1", "--lines", "2", "--", "my_path", "another_arg" };
-    info("args2: {s}", .{args2});
-    kv = try keyValueFromArgs(std.heap.page_allocator, &args2);
-    value = kv.get("number").?;
-    try expect(std.mem.eql(u8, value.?, "1"));
-    value = kv.get("lines").?;
-    try expect(std.mem.eql(u8, value.?, "2"));
+// with terminating - or --
+test "parseArgs 5" {
+    // std.testing.log_level = std.log.Level.info;
+    var args = [_][*:0]const u8{ "--number", "1", "--lines", "2", "--", "my_path", "another_arg" };
+    // info("args: {s}", .{args});
+    const res = try parseArgs(std.heap.page_allocator, &args);
+    const num = res.key_value.get("number").?;
+    try expect(std.mem.eql(u8, num.?, "1"));
+    const ln = res.key_value.get("lines").?;
+    try expect(std.mem.eql(u8, ln.?, "2"));
+}
 
+test "parseArgs 6" {
     // expected to fail
-    args = [_][*:0]const u8{ "hello", " " };
-    try expectError(error.InvalidArgs, keyValueFromArgs(std.heap.page_allocator, &args));
+    var args = [_][*:0]const u8{ "hello", " " };
+    try expectError(error.InvalidArgs, parseArgs(std.heap.page_allocator, &args));
+}
+
+test "parseArgs 7" {
+    // parse with params
+    // std.testing.log_level = std.log.Level.info;
+    var args = [_][*:0]const u8{ "--hello", "world", "--debug", "--", "search", "." };
+    const res = try parseArgs(std.heap.page_allocator, &args);
+    const params = res.params;
+    // std.log.info("params: {s}",.{params[0]});
+    // std.log.info("params: {s}",.{@TypeOf(params[0])});
+
+    try expect(std.mem.eql(u8, std.mem.span(params[0]), "search"));
+    try expect(std.mem.eql(u8, std.mem.span(params[1]), "."));
 }
 
 fn getEqualityKeyValue(str: []const u8) ?KeyValue {
