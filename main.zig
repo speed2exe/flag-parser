@@ -35,7 +35,7 @@ pub fn main() !void {
     print("\nline: {}, type: {}\n", .{ line, @TypeOf(line) });
     print("\nignore_hidden: {}, type: {}\n", .{ ignore_hidden, @TypeOf(ignore_hidden) });
 
-    // TODO: experiment with comptime stuff
+
 }
 
 fn myFunc() struct { a: i8, b: u8 } {

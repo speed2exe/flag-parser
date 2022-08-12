@@ -1,3 +1,7 @@
+// TODO: Bash completion
+// TODO: Man Page
+// TODO: Help Message Generation
+
 const std = @import("std");
 const print = std.debug.print;
 const mem = std.mem;
